@@ -96,13 +96,13 @@ extras_require["android_assistant"] = [
 ]
 
 setup(
-    name="metagpt",
+    name="ve_metagpt",
     version="1.0.0",
-    description="The Multi-Agent Framework",
+    description="Fork MetaGPT Update Version",
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/geekan/MetaGPT",
-    author="Alexander Wu",
+    author="Ian Yu",
     author_email="alexanderwu@deepwisdom.ai",
     license="MIT",
     keywords="metagpt multi-agent multi-role programming gpt llm metaprogramming",
