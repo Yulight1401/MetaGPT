@@ -97,7 +97,7 @@ extras_require["android_assistant"] = [
 
 setup(
     name="ve_metagpt",
-    version="1.0.0",
+    version="1.0.1",
     description="Fork MetaGPT Update Version",
     long_description=long_description,
     long_description_content_type="text/markdown",
