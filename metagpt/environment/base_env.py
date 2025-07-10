@@ -201,6 +201,19 @@ class Environment(ExtEnv):
         for _ in range(k):
             futures = []
             for role in self.roles.values():
+                futures.append(role.run())
+
+            await asyncio.gather(*futures)
+
+    async def run_stream(self, k=1):
+        """Process all Role runs at once with streaming output"""
+        for _ in range(k):
+            for role in self.roles.values():
+                async for output in role.run_stream():
+                    yield output
+        for _ in range(k):
+            futures = []
+            for role in self.roles.values():
                 if role.is_idle:
                     continue
                 future = role.run()

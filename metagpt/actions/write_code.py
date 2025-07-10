@@ -97,6 +97,23 @@ class WriteCode(Action):
         code = CodeParser.parse_code(text=code_rsp)
         return code
 
+    async def run_stream(self, *args, **kwargs):
+        # TODO: unify with run
+        coding_context = CodingContext.loads(self.i_context.content)
+        prompt = PROMPT_TEMPLATE.format(
+            design=coding_context.design_doc.content if coding_context.design_doc else "",
+            task=coding_context.task_doc.content if coding_context.task_doc else "",
+            code="",
+            logs="",
+            feedback="",
+            filename=self.i_context.filename,
+            demo_filename=Path(self.i_context.filename).stem,
+            summary_log="",
+        )
+        logger.info(f"Writing {coding_context.filename}..")
+        async for chunk in self.llm.aask_stream(prompt):
+            yield chunk
+
     async def run(self, *args, **kwargs) -> CodingContext:
         bug_feedback = None
         if self.input_args and hasattr(self.input_args, "issue_filename"):

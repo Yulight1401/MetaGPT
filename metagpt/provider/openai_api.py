@@ -89,7 +89,7 @@ class OpenAILLM(BaseLLM):
 
         return params
 
-    async def _achat_completion_stream(self, messages: list[dict], timeout=USE_CONFIG_TIMEOUT) -> str:
+    async def _achat_completion_stream(self, messages: list[dict], timeout=USE_CONFIG_TIMEOUT):
         response: AsyncStream[ChatCompletionChunk] = await self.aclient.chat.completions.create(
             **self._cons_kwargs(messages, timeout=self.get_timeout(timeout)), stream=True
         )
@@ -110,6 +110,7 @@ class OpenAILLM(BaseLLM):
             finish_reason = choice0.finish_reason if hasattr(choice0, "finish_reason") else None
             log_llm_stream(chunk_message)
             collected_messages.append(chunk_message)
+            yield chunk_message
             chunk_has_usage = hasattr(chunk, "usage") and chunk.usage
             if has_finished:
                 # for oneapi, there has a usage chunk after finish_reason not none chunk
@@ -133,7 +134,6 @@ class OpenAILLM(BaseLLM):
             usage = self._calc_usage(messages, full_reply_content)
 
         self._update_costs(usage)
-        return full_reply_content
 
     def _cons_kwargs(self, messages: list[dict], timeout=USE_CONFIG_TIMEOUT, **extra_kwargs) -> dict:
         kwargs = {

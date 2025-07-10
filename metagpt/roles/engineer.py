@@ -164,6 +164,14 @@ class Engineer(Role):
             return await self._act_summarize()
         return await self.rc.todo.run(self.rc.history)
 
+    async def _act_stream(self) -> Message | None:
+        if self.rc.todo is None:
+            return
+        # TODO: streaming for other actions
+        if isinstance(self.rc.todo, WriteCode):
+            async for chunk in self.rc.todo.run_stream():
+                yield chunk
+
     async def _act_write_code(self):
         await self._act_sp_with_cr(review=self.use_code_review)
         return AIMessage(

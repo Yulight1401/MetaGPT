@@ -183,7 +183,7 @@ class BaseLLM(ABC):
         format_msgs: Optional[list[dict[str, str]]] = None,
         images: Optional[Union[str, list[str]]] = None,
         timeout=USE_CONFIG_TIMEOUT,
-        stream=None,
+        stream=True,
     ) -> str:
         if system_msgs:
             message = self._system_msgs(system_msgs)
@@ -197,8 +197,6 @@ class BaseLLM(ABC):
             message.append(self._user_msg(msg, images=images))
         else:
             message.extend(msg)
-        if stream is None:
-            stream = self.config.stream
 
         # the image data is replaced with placeholders to avoid long output
         masked_message = [self.mask_base64_data(m) for m in message]
@@ -208,6 +206,30 @@ class BaseLLM(ABC):
         rsp = await self.acompletion_text(compressed_message, stream=stream, timeout=self.get_timeout(timeout))
         # rsp = await self.acompletion_text(message, stream=stream, timeout=self.get_timeout(timeout))
         return rsp
+
+    async def aask_stream(
+        self,
+        msg: Union[str, list[dict[str, str]]],
+        system_msgs: Optional[list[str]] = None,
+        format_msgs: Optional[list[dict[str, str]]] = None,
+        **kwargs,
+    ):
+        """stream version of aask"""
+        if system_msgs:
+            messages = self._system_msgs(system_msgs)
+        else:
+            messages = [self._default_system_msg()]
+        if not self.use_system_prompt:
+            messages = []
+        if format_msgs:
+            messages.extend(format_msgs)
+        if isinstance(msg, str):
+            messages.append(self._user_msg(msg))
+        else:
+            messages.extend(msg)
+
+        async for chunk in self._achat_completion_stream(messages, **kwargs):
+            yield chunk
 
     def _extract_assistant_rsp(self, context):
         return "\n".join([i["content"] for i in context if i["role"] == "assistant"])
@@ -243,8 +265,10 @@ class BaseLLM(ABC):
         """
 
     @abstractmethod
-    async def _achat_completion_stream(self, messages: list[dict], timeout: int = USE_CONFIG_TIMEOUT) -> str:
-        """_achat_completion_stream implemented by inherited class"""
+    async def _achat_completion_stream(self, messages: list[dict], timeout: int = USE_CONFIG_TIMEOUT) -> "AsyncGenerator[str, None]":
+        """_achat_completion_stream: abstract method, must be implemented by subclasses.
+        The method is an asynchronous generator that yields strings.
+        """
 
     @retry(
         stop=stop_after_attempt(3),

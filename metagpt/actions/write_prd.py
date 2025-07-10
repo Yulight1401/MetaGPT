@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import List, Optional, Union
+from typing import AsyncGenerator, List, Optional, Union
 
 from pydantic import BaseModel, Field
 
@@ -188,6 +188,25 @@ class WritePRD(Action):
             cause_by=self,
         )
 
+    async def run_stream(self, with_messages: List[Message] = None, **kwargs) -> AsyncGenerator[str, None]:
+        """stream generating prd"""
+        if not with_messages:
+            # TODO: handle stream mode without message
+            yield ""
+            return
+
+        self.input_args = with_messages[-1].instruct_content
+        if not self.input_args:
+            self.repo = ProjectRepo(self.context.kwargs.project_path)
+            await self.repo.docs.save(filename=REQUIREMENT_FILENAME, content=with_messages[-1].content)
+        else:
+            self.repo = ProjectRepo(self.input_args.project_path)
+
+        req_doc = await self.repo.docs.get(REQUIREMENT_FILENAME)
+        async for chunk in self._new_prd_stream(req_doc.content):
+            yield chunk
+
+
     async def _handle_bugfix(self, req: Document) -> AIMessage:
         # ... bugfix logic ...
         await self.repo.docs.save(filename=BUGFIX_FILENAME, content=req.content)
@@ -214,6 +233,14 @@ class WritePRD(Action):
             req=context, llm=self.llm, exclude=exclude, schema=self.prompt_schema
         )  # schema=schema
         return node
+
+    async def _new_prd_stream(self, requirement: str) -> AsyncGenerator[str, None]:
+        project_name = self.project_name
+        context = CONTEXT_TEMPLATE.format(requirements=requirement, project_name=project_name)
+        exclude = [PROJECT_NAME.key] if project_name else []
+        prompt = WRITE_PRD_NODE.prompt_template.format(req=context, exclude=exclude, schema=self.prompt_schema)
+        async for chunk in self.llm.aask_stream(prompt):
+            yield chunk
 
     async def _handle_new_requirement(self, req: Document) -> ActionOutput:
         """handle new requirement"""

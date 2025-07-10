@@ -31,6 +31,12 @@ class BaseRole(BaseSerialization):
     async def run(self, with_message: Optional[Union[str, "Message", list[str]]] = None) -> Optional["Message"]:
         """Observe, and think and act based on the results of the observation."""
 
+
+    @abstractmethod
+    async def run_stream(self, with_message: Optional[Union[str, "Message", list[str]]] = None) -> Optional["Message"]:
+        """Observe, and think and act based on the results of the observation."""
+
+
     @abstractmethod
     def get_memories(self, k: int = 0) -> list["Message"]:
         """Return the most recent k memories of this role."""

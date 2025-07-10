@@ -95,6 +95,11 @@ class TalkAction(Action):
         self.rsp = Message(content=rsp, role="assistant", cause_by=self)
         return self.rsp
 
+    async def run_stream(self, with_message=None, **kwargs):
+        msg, format_msgs, system_msgs = self.aask_args
+        async for chunk in self.llm.aask_stream(msg=msg, format_msgs=format_msgs, system_msgs=system_msgs):
+            yield Message(content=chunk, role="assistant", cause_by=self)
+
 
 class TalkActionPrompt:
     FORMATION = """Formation: "Capacity and role" defines the role you are currently playing;

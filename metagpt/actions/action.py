@@ -113,6 +113,13 @@ class Action(SerializationMixin, ContextMixin, BaseModel):
             return await self._run_action_node(*args, **kwargs)
         raise NotImplementedError("The run method should be implemented in a subclass.")
 
+    async def run_stream(self, *args, **kwargs):
+        """Run action with streaming output"""
+        if self.node:
+            # TODO: streaming for action node
+            yield await self._run_action_node(*args, **kwargs)
+        raise NotImplementedError("The run_stream method should be implemented in a subclass.")
+
     def override_context(self):
         """Set `private_context` and `context` to the same `Context` object."""
         if not self.private_context:

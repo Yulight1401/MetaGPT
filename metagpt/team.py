@@ -136,3 +136,17 @@ class Team(BaseModel):
             logger.debug(f"max {n_round=} left.")
         self.env.archive(auto_archive)
         return self.env.history
+
+    async def run_stream(self, n_round=3, idea="", send_to=""):
+        """Run company with streaming output"""
+        if idea:
+            self.run_project(idea=idea, send_to=send_to)
+
+        while n_round > 0:
+            if self.env.is_idle:
+                break
+            n_round -= 1
+            self._check_balance()
+
+            async for output in self.env.run_stream():
+                yield output

@@ -366,8 +366,8 @@ class Role(BaseRole, SerializationMixin, ContextMixin, BaseModel):
 
         logger.info(f"{prompt=}")
         next_state = await self.llm.aask(prompt)
-        next_state = extract_state_value_from_output(next_state)
         logger.info(f"llm aask {next_state=}")
+        next_state = extract_state_value_from_output(next_state)
 
         if (not next_state.isdigit() and next_state != "-1") or int(next_state) not in range(-1, len(self.states)):
             logger.warning(f"Invalid answer of state, {next_state=}, will be set to -1")
@@ -380,12 +380,10 @@ class Role(BaseRole, SerializationMixin, ContextMixin, BaseModel):
         return True
 
     async def _act(self) -> Message:
-        if not self.rc.todo:
-            return AIMessage(content="", cause_by=Action, sent_from=self)
-
-        logger.info(f"{self._setting}: to do {self.rc.todo.name}")
-
-        response = await self.rc.todo.run()
+        if self.rc.todo == None:
+            return AIMessage(content="", cause_by=self.rc.todo, sent_from=self)
+        logger.info(f"{self._setting}: to do {self.rc.todo}({self.rc.todo.name})")
+        response = await self.rc.todo.run(self.rc.history)
         if isinstance(response, (ActionOutput, ActionNode)):
             msg = AIMessage(
                 content=response.content,
@@ -400,27 +398,6 @@ class Role(BaseRole, SerializationMixin, ContextMixin, BaseModel):
         self.rc.memory.add(msg)
 
         return msg
-
-    async def _act_stream(self) -> Message:
-        """stream version of _act"""
-        if not self.rc.todo:
-            yield AIMessage(content="", cause_by=Action, sent_from=self)
-
-        logger.info(f"{self._setting}: to do {self.rc.todo.name}")
-
-        async for response in self.rc.todo.run_stream():
-            if isinstance(response, (ActionOutput, ActionNode)):
-                msg = AIMessage(
-                    content=response.content,
-                    instruct_content=response.instruct_content,
-                    cause_by=self.rc.todo,
-                    sent_from=self,
-                )
-            elif isinstance(response, Message):
-                msg = response
-            else:
-                msg = AIMessage(content=response or "", cause_by=self.rc.todo, sent_from=self)
-            yield msg
 
     async def _observe(self) -> int:
         """Prepare new messages for processing from the message buffer and other sources."""
@@ -550,22 +527,6 @@ class Role(BaseRole, SerializationMixin, ContextMixin, BaseModel):
             rsp.with_agent(self._setting)
         return rsp
 
-    async def _react_stream(self):
-        """Think first, then act, until the Role _think it is time to stop and requires no more todo."""
-        actions_taken = 0
-        while actions_taken < self.rc.max_react_loop:
-            # think
-            has_todo = await self._think()
-            if not has_todo:
-                break
-            # act
-            logger.debug(f"{self._setting}: {self.rc.state=}, will do {self.rc.todo}")
-            if self.rc.todo is None:
-                break
-            async for rsp in self._act_stream():
-                yield rsp
-            actions_taken += 1
-
     def get_memories(self, k=0) -> list[Message]:
         """A wrapper to return the most recent k memories of this role, return all when k=0"""
         return self.rc.memory.get(k=k)
@@ -596,32 +557,6 @@ class Role(BaseRole, SerializationMixin, ContextMixin, BaseModel):
         # Send the response message to the Environment object to have it relay the message to the subscribers.
         self.publish_message(rsp)
         return rsp
-
-    async def run_stream(self, with_message=None):
-        """Observe, and think and act based on the results of the observation with streaming output"""
-        if with_message:
-            msg = None
-            if isinstance(with_message, str):
-                msg = Message(content=with_message)
-            elif isinstance(with_message, Message):
-                msg = with_message
-            elif isinstance(with_message, list):
-                msg = Message(content="\n".join(with_message))
-            if not msg.cause_by:
-                msg.cause_by = UserRequirement
-            self.put_message(msg)
-
-        if not await self._observe():
-            # If there is no new information, suspend and wait
-            logger.debug(f"{self._setting}: no news. waiting.")
-            return
-
-        async for rsp in self._react_stream():
-            # Reset the next action to be taken.
-            self.set_todo(None)
-            # Send the response message to the Environment object to have it relay the message to the subscribers.
-            self.publish_message(rsp)
-            yield rsp
 
     @property
     def is_idle(self) -> bool:
